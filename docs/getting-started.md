@@ -15,14 +15,31 @@ compositions:
   sources:
     - name: stack-tectonic
       kind: oci
-      ref: oci://ghcr.io/sourceplane/stack-tectonic:0.11.0
+      ref: oci://ghcr.io/sourceplane/stack-tectonic:0.13.0
 ```
 
 ## 3. Discover local components
 
 Point `discovery.roots` at the application, infra, and deploy directories that own `component.yaml` files.
 
-## 4. Plan and apply
+## 4. Pick a profile per environment
+
+Each component subscribes to environments and names the execution profile that runs there:
+
+```yaml
+spec:
+  type: cloudflare-pages
+  subscribe:
+    environments:
+      - name: development
+        profile: pull-request
+      - name: production
+        profile: deploy
+```
+
+A profile selects a subset of the composition's job steps, so the non-mutating and mutating lanes come from the same contract. Omit `profile` and the composition's default applies.
+
+## 5. Plan and apply
 
 Run `orun validate`, `orun plan`, or `orun run` against that intent. The stack stays versioned independently from the consuming repository.
 

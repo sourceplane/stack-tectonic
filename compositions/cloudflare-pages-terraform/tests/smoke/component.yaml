@@ -6,22 +6,26 @@ metadata:
 
 spec:
   type: cloudflare-pages-terraform
+  lifecycle: production
+  owner: platform
   domain: platform-docs
+  path: infra/cloudflare-pages-docs
   subscribe:
     environments:
-      - production
-  inputs:
-    siteDir: ../../website
+      - name: production
+        profile: release
+  parameters:
+    nodeVersion: "20"
+    appDir: ../../website
     installCommand: npm ci
     buildCommand: npm run docs:build
     cloudflareBuildCommand: npm ci && npm run docs:build
     outputDir: docs-build
     rootDir: website
-    nodeVersion: "20"
     terraformDir: .
     terraformVersion: 1.9.8
     projectName: example-platform-docs-terraform
-    productionBranch: main
+    deployBranch: main
     repoOwner: sourceplane
     repoName: example-platform-repo
   labels:

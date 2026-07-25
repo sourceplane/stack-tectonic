@@ -1,0 +1,48 @@
+apiVersion: sourceplane.io/v1alpha1
+kind: JobTemplate
+metadata:
+  name: publish-stack-publish
+spec:
+  description: Publish an Orun stack to an OCI registry, with an always-on dry-run validation step
+  runsOn: ubuntu-22.04
+  timeout: 20m
+  retries: 0
+
+  labels:
+    scope: delivery
+
+  capabilities:
+    - publish-stack.setup
+    - publish-stack.dry-run
+    - publish-stack.publish
+
+  steps:
+    - id: setup-orun
+      name: setup-orun
+      capability: publish-stack.setup
+      use: sourceplane/orun-action@v1.1.0
+
+    # The declared parameters are passed explicitly. Without them `orun publish`
+    # infers the target from the git remote (ghcr.io/<owner>/<repo>/<package>)
+    # and the version from the git tag or stack.yaml — which silently ignores
+    # `registry`/`version` and publishes to the wrong repository path.
+    - id: publish-dry-run
+      name: publish-dry-run
+      capability: publish-stack.dry-run
+      shell: bash
+      run: |
+        orun publish "{{ .parameters.registry }}" \
+          --root "{{ if .parameters.root }}{{ .parameters.root }}{{ else }}.{{ end }}" \
+          --version "{{ .parameters.version }}" \
+          --dry-run
+      onFailure: stop
+
+    - id: publish
+      name: publish
+      capability: publish-stack.publish
+      shell: bash
+      run: |
+        orun publish "{{ .parameters.registry }}" \
+          --root "{{ if .parameters.root }}{{ .parameters.root }}{{ else }}.{{ end }}" \
+          --version "{{ .parameters.version }}"
+      onFailure: stop

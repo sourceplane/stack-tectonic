@@ -11,36 +11,8 @@ permissions:
   packages: read
 
 jobs:
-  composition-fixtures:
-    name: Composition fixture (${{ matrix.composition }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        composition:
-          - cloudflare-pages
-          - cloudflare-pages-turbo
-          - cloudflare-pages-terraform
-          - cloudflare-pages-turbo-terraform
-          - cloudflare-worker
-          - cloudflare-worker-turbo
-          - terraform
-          - helm-chart
-          - helm-values
-          - turbo-package
-          - workspace
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Make helper scripts executable
-        run: chmod +x scripts/*.sh
-
-      - name: Verify composition fixtures
-        run: ./scripts/verify-composition.sh "${{ matrix.composition }}"
-
   verify-stack:
     name: Verify stack catalog
-    needs: composition-fixtures
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -60,5 +32,8 @@ jobs:
       - name: Make helper scripts executable
         run: chmod +x scripts/*.sh
 
+      # Structurally validates every composition contract, resolves the publish
+      # target, then packs the shipped layers and resolves them back through a
+      # throwaway consumer intent — the same path a consuming repo runs.
       - name: Verify catalog
         run: ./scripts/verify.sh
