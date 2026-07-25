@@ -23,7 +23,7 @@ compositions:
   sources:
     - name: stack-tectonic
       kind: oci
-      ref: oci://ghcr.io/sourceplane/stack-tectonic:0.12.0
+      ref: oci://ghcr.io/sourceplane/stack-tectonic:0.13.0
 ```
 
 ## Default workflow template
@@ -103,4 +103,4 @@ jobs:
 - plan artifact reuse across matrix runners
 - changed-only pull request and main-branch planning
 - remote-state coordination across parallel GitHub Actions runners
-- a pinned Orun GitHub Action version instead of a separate `kiox` workspace
+- a pinned Orun GitHub Action version, pinned independently from the catalog release in `intent.yaml`

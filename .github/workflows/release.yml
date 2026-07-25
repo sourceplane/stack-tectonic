@@ -43,12 +43,6 @@ jobs:
       - name: Verify catalog
         run: ./scripts/verify.sh
 
-      - name: Publish OCI package
-        run: |
-          orun publish ghcr.io/sourceplane/stack-tectonic:${STACK_VERSION} \
-            --root . \
-            --version "${STACK_VERSION}"
-
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -62,8 +56,20 @@ jobs:
             --title "${GITHUB_REF_NAME}" \
             --generate-notes
 
-      - name: Upload registry index
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${GITHUB_REF_NAME}" registry/index.json --clobber
-        
+      # Runs after the release so the tag and release notes are the record of
+      # record before the immutable artifact is pushed. The target is passed
+      # explicitly: with no ref, orun infers ghcr.io/<owner>/<repo>/<package>
+      # from the git remote, which is the wrong repository path.
+      - name: Publish OCI package
+        run: |
+          orun publish "ghcr.io/sourceplane/stack-tectonic:${STACK_VERSION}" \
+            --root . \
+            --version "${STACK_VERSION}"
+
+      - name: Confirm package is pullable
+        run: |
+          orun fetch "ghcr.io/sourceplane/stack-tectonic:${STACK_VERSION}" \
+            --output "${RUNNER_TEMP}/published" --overwrite
+          test -f "${RUNNER_TEMP}/published/stack.yaml"
+          echo "published $(ls "${RUNNER_TEMP}/published/compositions" | wc -l) composition(s)"
+
