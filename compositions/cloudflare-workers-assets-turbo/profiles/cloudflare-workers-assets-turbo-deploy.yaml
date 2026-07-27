@@ -14,6 +14,10 @@ spec:
   # run time. Verify/pull-request profiles carry no bindings.
   secretBindings:
     CLOUDFLARE_API_TOKEN: { required: true }
+    # The account id is a non-secret connection fact, brokered from the same
+    # Cloudflare integration (template: account-id) — bound here so the deploy
+    # step needs no ambient CI value for it either.
+    CLOUDFLARE_ACCOUNT_ID: { required: true }
 
   jobs:
     verify-deploy:
