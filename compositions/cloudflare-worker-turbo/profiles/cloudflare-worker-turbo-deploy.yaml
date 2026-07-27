@@ -9,6 +9,15 @@ spec:
     requireApproval: true
     requireCleanGitTree: true
 
+  # The deploy step talks to the Cloudflare API (wrangler deploy), so the
+  # profile declares the credential it needs as an orun secret binding: the
+  # planner maps it to secret://<workspace>/<project>/<env>/CLOUDFLARE_API_TOKEN
+  # and the runner resolves + injects it at run time (redacted from logs).
+  # Verify/pull-request profiles deliberately carry no bindings — those lanes
+  # never touch the Cloudflare API and never resolve a credential.
+  secretBindings:
+    CLOUDFLARE_API_TOKEN: { required: true }
+
   jobs:
     verify-deploy:
       includeCapabilities:
