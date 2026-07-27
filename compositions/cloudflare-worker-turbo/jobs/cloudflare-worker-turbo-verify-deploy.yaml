@@ -169,45 +169,42 @@ spec:
       capability: cloudflare-worker-turbo.secrets-live
       shell: bash
       run: |
-        {{- if .parameters.secretsWorker }}
-        # SS2: hydrate this worker's runtime secrets from the AWS Secrets
-        # Manager escrow document (<org>/<repo>/worker-secrets/<env>). Runs
-        # after deploy so a first-boot worker exists before secrets are
-        # pushed; `wrangler secret bulk` rolls a new version immediately, so
-        # smoke still observes the synced state. No escrow document at all =
-        # pre-SS3 state: existing manually-put secrets are left untouched.
+        {{- if .parameters.runtimeSecrets }}
+        # Runtime worker secrets from orun (wire-now-seed-later): the component
+        # declares its runtime keys in optionalSecretEnv — resolved best-effort
+        # into THIS job's env by the runner — and names them in the
+        # runtimeSecrets parameter. Every name with a value present is pushed
+        # via `wrangler secret bulk` after deploy (first boot creates the
+        # worker before secrets are pushed; bulk rolls a new version
+        # immediately, so smoke observes the synced state). Unseeded names are
+        # skipped and reported by NAME only — values never reach the log, and
+        # the runner's redactor additionally scrubs any resolved value from
+        # captured output.
         set -euo pipefail
         env_name="{{ .orun.environment.name }}"
-        escrow_id="{{ .parameters.orgName }}/{{ .parameters.repo }}/worker-secrets/${env_name}"
-        record_id="{{ .parameters.orgName }}/{{ .parameters.repo }}/worker-secrets-fingerprints/${env_name}"
-        work_dir=$(mktemp -d)
-        if ! aws secretsmanager get-secret-value --secret-id "${escrow_id}" \
-            --query SecretString --output text > "${work_dir}/escrow.json" 2>/dev/null; then
-          echo "secrets-live: no escrow document at ${escrow_id} (SS3 not seeded) — leaving existing worker secrets untouched."
-          exit 0
+        bulk="$(mktemp)"
+        present=(); missing=()
+        IFS=',' read -ra names <<< "{{ .parameters.runtimeSecrets }}"
+        for name in "${names[@]}"; do
+          name="$(echo "$name" | xargs)"
+          [ -z "$name" ] && continue
+          if [ -n "${!name:-}" ]; then present+=("$name"); else missing+=("$name"); fi
+        done
+        if [ "${#present[@]}" -eq 0 ]; then
+          echo "secrets-live: none of the declared runtime secrets are seeded in orun yet — leaving existing worker secrets untouched."
+          rm -f "$bulk"; exit 0
         fi
-        aws secretsmanager get-secret-value --secret-id "${record_id}" \
-          --query SecretString --output text > "${work_dir}/record.json" 2>/dev/null \
-          || echo '{}' > "${work_dir}/record.json"
-        node {{ .parameters.workspaceDir }}/tooling/secrets-sync/sync.mjs \
-          --manifest {{ .parameters.workspaceDir }}/tooling/secrets-sync/secrets.manifest.json \
-          --worker "{{ .parameters.secretsWorker }}" \
-          --env "${env_name}" \
-          --escrow "${work_dir}/escrow.json" \
-          --record "${work_dir}/record.json" \
-          --out-bulk "${work_dir}/bulk.json" \
-          --out-record "${work_dir}/record.next.json"
-        if [ "$(cat "${work_dir}/bulk.json")" != "{}" ]; then
-          pnpm exec wrangler secret bulk "${work_dir}/bulk.json" \
-            --config {{ .parameters.wranglerConfig }} --env "${env_name}"
-          aws secretsmanager put-secret-value --secret-id "${record_id}" \
-            --secret-string "file://${work_dir}/record.next.json" >/dev/null 2>&1 \
-            || aws secretsmanager create-secret --name "${record_id}" \
-                 --secret-string "file://${work_dir}/record.next.json" >/dev/null
+        for name in "${present[@]}"; do
+          printf '%s' "${!name}" | jq -Rs --arg k "$name" '{($k): .}'
+        done | jq -s 'add' > "$bulk"
+        pnpm exec wrangler secret bulk "$bulk" --config {{ .parameters.wranglerConfig }} --env "${env_name}"
+        rm -f "$bulk"
+        echo "secrets-live: pushed ${#present[@]} runtime secret(s): ${present[*]}"
+        if [ "${#missing[@]}" -gt 0 ]; then
+          echo "secrets-live: not seeded yet (skipped): ${missing[*]}"
         fi
-        rm -rf "${work_dir}"
         {{- else }}
-        echo "secrets-live: component has no managed runtime secrets; skipping."
+        echo "secrets-live: component declares no runtime secrets; skipping."
         {{- end }}
       onFailure: stop
 

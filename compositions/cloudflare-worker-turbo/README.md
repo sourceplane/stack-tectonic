@@ -27,7 +27,7 @@ be hydrated from an escrow after deploy.
 - **Optional wiring parameters:** `wranglerTemplate` (empty means a legacy
   committed config and the wiring steps no-op), `wiringComponents`,
   `wiringEnvs` (default `stage,prod`), `wiringFixture` (default
-  `wiring.fixture.json`), `secretsWorker`, `awsAccountId`, `awsRegion` (default
+  `wiring.fixture.json`), `runtimeSecrets`, `awsAccountId`, `awsRegion` (default
   `us-east-1`), `orgName`, `owner`, `repo`
 
 ## Profiles
@@ -42,7 +42,7 @@ Each file in `profiles/` selects steps from the job by capability.
 
 `wire-credentials` and `wire-live` are deploy-only by design so verify lanes stay
 credential-free; both no-op for components without a `wranglerTemplate`, and
-`secrets-live` no-ops for components without `secretsWorker`.
+`secrets-live` pushes the component's orun-resolved runtime secrets (`runtimeSecrets` names, best-effort via `optionalSecretEnv`) and no-ops for components without them.
 
 ## Verification
 
