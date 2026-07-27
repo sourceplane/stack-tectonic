@@ -44,6 +44,6 @@ spec:
         - cloudflare-worker-turbo.deploy
         # SS2: hydrate runtime secrets from the worker-secrets escrow after
         # deploy (first boot creates the worker first); no-op for components
-        # without secretsWorker, clean skip until the escrow is seeded (SS3).
+        # without runtimeSecrets, clean skip until keys are seeded in orun.
         - cloudflare-worker-turbo.secrets-live
         - cloudflare-worker-turbo.smoke
