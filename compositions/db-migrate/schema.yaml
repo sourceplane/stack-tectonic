@@ -23,13 +23,10 @@ spec:
         required:
           - nodeVersion
           - pnpmVersion
-          - secretName
         properties:
           nodeVersion:
             type: string
           pnpmVersion:
-            type: string
-          secretName:
             type: string
           owner:
             type: string
