@@ -115,12 +115,20 @@ spec:
       run: |
         {{- if .parameters.wireSecrets }}
         set -euo pipefail
-        org=$(printf '%s' "$TF_HTTP_ADDRESS" | sed -E 's#.*/organizations/([^/]+)/projects/.*#\1#')
+        # Scope from the runner-exported backend address (org_…/prj_… public
+        # ids) — no repo link exists in CI, so the CLI reads these env vars.
+        export ORUN_WORKSPACE=$(printf '%s' "$TF_HTTP_ADDRESS" | sed -E 's#.*/organizations/([^/]+)/projects/.*#\1#')
+        export ORUN_PROJECT=$(printf '%s' "$TF_HTTP_ADDRESS" | sed -E 's#.*/projects/([^/]+)/state/.*#\1#')
+        tmp=$(mktemp)
+        trap 'rm -f "$tmp"' EXIT
         for pair in $(echo "{{ .parameters.wireSecrets }}" | tr ',' ' '); do
           key="${pair%%=*}"
           output="${pair#*=}"
-          terraform -chdir={{ .parameters.terraformDir }} output -raw "$output" | \
-            orun secrets set "$key" --org "$org" --project --env "{{ .orun.environment.name }}"
+          terraform -chdir={{ .parameters.terraformDir }} output -raw "$output" > "$tmp"
+          # First deploy creates; later deploys append a version (set 409s on
+          # an existing key). Value travels via file+stdin — never argv/echo.
+          orun secrets set "$key" --env "{{ .orun.environment.name }}" < "$tmp" \
+            || orun secrets rotate "$key" --env "{{ .orun.environment.name }}" < "$tmp"
           echo "wired $key ← output/$output"
         done
         {{- else }}
