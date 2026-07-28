@@ -25,11 +25,13 @@ spec:
           - terraformDir
           - terraformVersion
         properties:
-          awsAccountId:
+          wireSecrets:
             type: string
-            description: AWS account ID hosting the GitHub-OIDC role this component assumes
-          awsRegion:
-            type: string
+            description: >-
+              Comma-separated KEY=output pairs pushed to orun secrets after
+              apply (project/env rung, value over stdin). The de-AWS wiring
+              channel: downstream consumers read the same keys as secretEnv
+              references — no Secrets Manager.
           lane:
             type: string
           namespace:

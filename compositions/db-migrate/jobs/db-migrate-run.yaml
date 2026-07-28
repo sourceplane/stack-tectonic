@@ -16,7 +16,6 @@ spec:
     - db-migrate.setup-pnpm
     - db-migrate.install
     - db-migrate.build
-    - db-migrate.aws-credentials
     - db-migrate.plan
     - db-migrate.apply
 
@@ -49,16 +48,6 @@ spec:
       name: build-db-package
       capability: db-migrate.build
       run: pnpm exec turbo run build --filter=@saas/db
-      onFailure: stop
-
-    - id: aws-credentials
-      name: Configure AWS Credentials
-      capability: db-migrate.aws-credentials
-      use: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: "arn:aws:iam::{{.parameters.awsAccountId}}:role/{{.orun.environment.name}}-github-{{.parameters.owner}}-{{.parameters.repo}}-plan"
-        aws-region: "{{.parameters.awsRegion}}"
-        audience: sts.amazonaws.com
       onFailure: stop
 
     - id: migrate-plan

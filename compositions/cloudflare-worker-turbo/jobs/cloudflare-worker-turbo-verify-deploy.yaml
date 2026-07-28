@@ -20,7 +20,6 @@ spec:
     - cloudflare-worker-turbo.build
     - cloudflare-worker-turbo.typecheck
     - cloudflare-worker-turbo.deploy-dry-run
-    - cloudflare-worker-turbo.wire-credentials
     - cloudflare-worker-turbo.wire-live
     - cloudflare-worker-turbo.pre-deploy
     - cloudflare-worker-turbo.migrate
@@ -106,16 +105,6 @@ spec:
       run: "pnpm exec wrangler deploy --dry-run --config {{ .parameters.wranglerConfig }} --env {{ .orun.environment.name }}"
       onFailure: stop
 
-    - id: wire-credentials
-      name: wire-credentials
-      capability: cloudflare-worker-turbo.wire-credentials
-      use: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: "arn:aws:iam::{{.parameters.awsAccountId}}:role/{{.orun.environment.name}}-github-{{.parameters.owner}}-{{.parameters.repo}}-plan"
-        aws-region: "{{.parameters.awsRegion}}"
-        audience: sts.amazonaws.com
-      onFailure: stop
-
     - id: wire-live
       name: wire-live
       capability: cloudflare-worker-turbo.wire-live
@@ -123,12 +112,20 @@ spec:
       run: |
         {{- if .parameters.wranglerTemplate }}
         set -euo pipefail
+        # Wiring documents come from orun secrets (de-AWS): each infra component
+        # pushed its outputs as WIRING_<COMPONENT> on the project/<env> rung
+        # (terraform wire-secrets step), and THIS component declares them in
+        # secretEnv as WIRING_<COMPONENT>_<ENV> — the runner resolves them into
+        # the step env, so the render input is plain env-var indirection.
         wiring_dir=$(mktemp -d)
         for comp in $(echo "{{ .parameters.wiringComponents }}" | tr ',' ' '); do
           for wenv in $(echo "{{ .parameters.wiringEnvs }}" | tr ',' ' '); do
-            aws secretsmanager get-secret-value \
-              --secret-id "{{ .parameters.orgName }}/{{ .parameters.repo }}/${comp}/${wenv}" \
-              --query SecretString --output text > "${wiring_dir}/${comp}__${wenv}.json"
+            var="WIRING_$(echo "${comp}" | tr 'a-z-' 'A-Z_')_$(echo "${wenv}" | tr 'a-z' 'A-Z')"
+            if [ -z "${!var:-}" ]; then
+              echo "wire-live: ${var} is empty — declare it in this component's secretEnv (secret://<ws>/<project>/${wenv}/WIRING_$(echo "${comp}" | tr 'a-z-' 'A-Z_'))" >&2
+              exit 1
+            fi
+            printf '%s' "${!var}" > "${wiring_dir}/${comp}__${wenv}.json"
           done
         done
         node {{ .parameters.workspaceDir }}/tooling/wire/render.mjs \

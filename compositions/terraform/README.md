@@ -22,9 +22,8 @@ Repo-local Orun composition for Terraform infrastructure components.
 | `stackName` | yes | Logical name of the Terraform stack |
 | `terraformDir` | yes | Relative path to the Terraform root module |
 | `terraformVersion` | yes | Pinned Terraform CLI version |
-| `awsAccountId` | no | AWS account ID hosting the GitHub-OIDC role this component assumes |
-| `orgName` | no | Organization name (used for S3 bucket naming) |
-| `awsRegion` | no | AWS region override |
+| `wireSecrets` | no | Comma-separated `KEY=output` pairs pushed to orun secrets after apply (the de-AWS wiring channel) |
+| `orgName` | no | Organization name |
 | `owner` | no | GitHub org owner |
 | `repo` | no | GitHub repo name |
 | `namespace` | no | Logical namespace |
@@ -37,8 +36,10 @@ Each file in `profiles/` selects steps from the `terraform` job by capability.
 
 ### `plan-only`
 
-Non-mutating validation: setup, AWS credentials, env export, context, fmt, init,
-workspace, validate, plan. Used on pull requests to preview changes.
+Non-mutating validation: setup, env export, context, fmt, init, validate, plan
+(state served by the platform's terraform HTTP backend via runner-exported
+TF_HTTP_* — no cloud credentials step, no workspaces). Used on pull requests
+to preview changes.
 
 ### `apply` (default)
 

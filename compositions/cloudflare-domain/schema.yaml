@@ -34,11 +34,6 @@ spec:
             type: string
           terraformVersion:
             type: string
-          awsAccountId:
-            type: string
-            description: AWS account ID hosting the GitHub-OIDC role this component assumes
-          awsRegion:
-            type: string
           orgName:
             type: string
           owner:

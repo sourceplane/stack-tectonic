@@ -29,11 +29,6 @@ spec:
             type: string
           pnpmVersion:
             type: string
-          awsAccountId:
-            type: string
-            description: AWS account ID hosting the GitHub-OIDC role this component assumes
-          awsRegion:
-            type: string
           secretName:
             type: string
           owner:

@@ -9,11 +9,9 @@ spec:
     terraform:
       includeCapabilities:
         - terraform.setup
-        - terraform.aws-credentials
         - terraform.env
         - terraform.context
         - terraform.fmt
         - terraform.init
-        - terraform.workspace
         - terraform.validate
         - terraform.plan

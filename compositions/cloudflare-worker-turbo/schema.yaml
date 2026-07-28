@@ -70,12 +70,6 @@ spec:
             type: string
             default: ""
             description: Comma-separated env var names the secrets-live step pushes as the worker's runtime secrets. Each name resolves from orun secrets via the component's optionalSecretEnv (best-effort — unseeded names are skipped and reported); empty = the step skips.
-          awsAccountId:
-            type: string
-            description: AWS account ID hosting the GitHub-OIDC role wire-live assumes to read wiring secrets
-          awsRegion:
-            type: string
-            default: us-east-1
           orgName:
             type: string
           owner:

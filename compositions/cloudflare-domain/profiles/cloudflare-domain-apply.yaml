@@ -9,12 +9,10 @@ spec:
     cloudflare-domain:
       includeCapabilities:
         - cloudflare-domain.setup
-        - cloudflare-domain.aws-credentials
         - cloudflare-domain.env
         - cloudflare-domain.context
         - cloudflare-domain.fmt
         - cloudflare-domain.init
-        - cloudflare-domain.workspace
         - cloudflare-domain.validate
         - cloudflare-domain.plan
         - cloudflare-domain.apply
