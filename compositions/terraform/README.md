@@ -22,7 +22,7 @@ Repo-local Orun composition for Terraform infrastructure components.
 | `stackName` | yes | Logical name of the Terraform stack |
 | `terraformDir` | yes | Relative path to the Terraform root module |
 | `terraformVersion` | yes | Pinned Terraform CLI version |
-| `wireSecrets` | no | Comma-separated `KEY=output` pairs pushed to orun secrets after apply (the de-AWS wiring channel) |
+| `secretOutputs` | no | Comma-separated `KEY=output` pairs queued on the runner sink after apply and published over the lease-bound channel (SEC-JOB) |
 | `orgName` | no | Organization name |
 | `owner` | no | GitHub org owner |
 | `repo` | no | GitHub repo name |
