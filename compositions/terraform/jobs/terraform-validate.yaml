@@ -115,8 +115,10 @@ spec:
       run: |
         {{- if .parameters.wireSecrets }}
         set -euo pipefail
-        # Scope from the runner-exported backend address (org_…/prj_… public
-        # ids) — no repo link exists in CI, so the CLI reads these env vars.
+        # Backend + scope from the runner-exported state address (org_…/prj_…
+        # public ids) — the step may run outside the repo root, so the CLI
+        # cannot rely on intent.yaml or a repo link for any of the three.
+        export ORUN_BACKEND_URL=$(printf '%s' "$TF_HTTP_ADDRESS" | sed -E 's#(https?://[^/]+)/.*#\1#')
         export ORUN_WORKSPACE=$(printf '%s' "$TF_HTTP_ADDRESS" | sed -E 's#.*/organizations/([^/]+)/projects/.*#\1#')
         export ORUN_PROJECT=$(printf '%s' "$TF_HTTP_ADDRESS" | sed -E 's#.*/projects/([^/]+)/state/.*#\1#')
         tmp=$(mktemp)
