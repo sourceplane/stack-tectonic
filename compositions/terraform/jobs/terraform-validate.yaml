@@ -20,7 +20,6 @@ spec:
     - terraform.validate
     - terraform.plan
     - terraform.apply
-    - terraform.wire-secrets
 
   steps:
     - id: setup-terraform
@@ -98,42 +97,25 @@ spec:
     - id: terraform-apply
       name: Apply
       capability: terraform.apply
-      run: "terraform -chdir={{ .parameters.terraformDir }} apply -no-color -auto-approve"
-      onFailure: stop
-
-    - id: wire-secrets
-      name: Wire outputs to orun secrets
-      capability: terraform.wire-secrets
       shell: bash
-      # Post-apply secret WRITES go through orun (no Secrets Manager): each
-      # KEY=output pair in wireSecrets pushes `terraform output -raw <output>`
-      # into the project/{{env}} secret rung via `orun secrets set` (value over
-      # stdin — never echoed, never in argv). Downstream consumers read the
-      # same keys back as secretEnv references. The (org, project) scope is
-      # parsed from the runner-exported TF_HTTP_ADDRESS, so this step needs no
-      # extra parameters and works in any workspace the run targets.
+      # SEC-JOB: declared outputs are appended to the runner's secret-outputs
+      # sink INSIDE the apply step — no extra sync step, no CLI, no auth. The
+      # RUNNER publishes them post-success over the run's lease-bound channel;
+      # the platform derives the target scope (project/env rung) from the
+      # leased job itself. secretOutputs: "KEY=output,KEY2=output2".
       run: |
-        {{- if .parameters.wireSecrets }}
         set -euo pipefail
-        # Backend + scope from the runner-exported state address (org_…/prj_…
-        # public ids) — the step may run outside the repo root, so the CLI
-        # cannot rely on intent.yaml or a repo link for any of the three.
-        export ORUN_BACKEND_URL=$(printf '%s' "$TF_HTTP_ADDRESS" | sed -E 's#(https?://[^/]+)/.*#\1#')
-        export ORUN_WORKSPACE=$(printf '%s' "$TF_HTTP_ADDRESS" | sed -E 's#.*/organizations/([^/]+)/projects/.*#\1#')
-        export ORUN_PROJECT=$(printf '%s' "$TF_HTTP_ADDRESS" | sed -E 's#.*/projects/([^/]+)/state/.*#\1#')
-        tmp=$(mktemp)
-        trap 'rm -f "$tmp"' EXIT
-        for pair in $(echo "{{ .parameters.wireSecrets }}" | tr ',' ' '); do
+        terraform -chdir={{ .parameters.terraformDir }} apply -no-color -auto-approve
+        {{- if .parameters.secretOutputs }}
+        for pair in $(echo "{{ .parameters.secretOutputs }}" | tr ',' ' '); do
           key="${pair%%=*}"
           output="${pair#*=}"
-          terraform -chdir={{ .parameters.terraformDir }} output -raw "$output" > "$tmp"
-          # First deploy creates; later deploys append a version (set 409s on
-          # an existing key). Value travels via file+stdin — never argv/echo.
-          orun secrets set "$key" --env "{{ .orun.environment.name }}" < "$tmp" \
-            || orun secrets rotate "$key" --env "{{ .orun.environment.name }}" < "$tmp"
-          echo "wired $key ← output/$output"
+          {
+            printf '%s<<__ORUN_EOF__\n' "$key"
+            terraform -chdir={{ .parameters.terraformDir }} output -raw "$output"
+            printf '\n__ORUN_EOF__\n'
+          } >> "${ORUN_SECRET_OUTPUTS:?runner did not provide the secret-outputs sink}"
+          echo "queued secret output $key ← output/$output"
         done
-        {{- else }}
-        echo "wire-secrets: no wireSecrets declared; skipping."
         {{- end }}
       onFailure: stop

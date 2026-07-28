@@ -25,13 +25,14 @@ spec:
           - terraformDir
           - terraformVersion
         properties:
-          wireSecrets:
+          secretOutputs:
             type: string
             description: >-
-              Comma-separated KEY=output pairs pushed to orun secrets after
-              apply (project/env rung, value over stdin). The de-AWS wiring
-              channel: downstream consumers read the same keys as secretEnv
-              references — no Secrets Manager.
+              Comma-separated KEY=output pairs (SEC-JOB): after apply, each
+              terraform output is queued on the runner's secret-outputs sink
+              and PUBLISHED by the runner over the run's lease-bound channel
+              onto the project/env rung. Downstream consumers read the same
+              keys as secretEnv references — no Secrets Manager, no CLI step.
           lane:
             type: string
           namespace:
