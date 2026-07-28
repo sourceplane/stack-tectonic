@@ -19,7 +19,7 @@ the run belongs to.
 - **Schema:** `schema.yaml` — the authoritative parameter contract
 - **Job:** `migrate` (default) — `jobs/db-migrate-run.yaml`
 - **Default profile:** `apply`
-- **Required parameters:** `nodeVersion`, `pnpmVersion`, `secretName`
+- **Required parameters:** `nodeVersion`, `pnpmVersion`
 - **Optional parameters:** `owner`, `repo`
 
 either profile in CI needs them set.
