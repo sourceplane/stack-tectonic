@@ -3,11 +3,9 @@ kind: ExecutionProfile
 metadata:
   name: terraform-local
 spec:
-  # Credential-free local lane: omits terraform.aws-credentials and
-  # terraform.apply, so it plans without assuming a role and never mutates
-  # infrastructure. The description previously read "Full Terraform plan and
-  # apply for live environments", copy-pasted from the apply profile.
-  description: Local Terraform plan only — no AWS credentials, no apply
+  # Local lane: omits terraform.apply (and wire-secrets), so it plans against
+  # the platform state backend and never mutates infrastructure.
+  description: Local Terraform plan only — no apply
 
   jobs:
     terraform:
@@ -17,6 +15,5 @@ spec:
         - terraform.context
         - terraform.fmt
         - terraform.init
-        - terraform.workspace
         - terraform.validate
         - terraform.plan

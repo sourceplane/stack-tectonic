@@ -13,15 +13,14 @@ spec:
 
   capabilities:
     - terraform.setup
-    - terraform.aws-credentials
     - terraform.env
     - terraform.context
     - terraform.fmt
     - terraform.init
-    - terraform.workspace
     - terraform.validate
     - terraform.plan
     - terraform.apply
+    - terraform.wire-secrets
 
   steps:
     - id: setup-terraform
@@ -31,16 +30,6 @@ spec:
       with:
         terraform_version: "{{.parameters.terraformVersion}}"
         terraform_wrapper: "false"
-
-    - id: aws-credentials
-      name: Configure AWS Credentials
-      capability: terraform.aws-credentials
-      use: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: "arn:aws:iam::{{.parameters.awsAccountId}}:role/{{.orun.environment.name}}-github-{{.parameters.owner}}-{{.parameters.repo}}-plan"
-        aws-region: "{{.parameters.awsRegion}}"
-        audience: sts.amazonaws.com
-      onFailure: stop
 
     - id: terraform-env
       name: Export Terraform Env
@@ -82,26 +71,16 @@ spec:
       name: Init
       capability: terraform.init
       shell: bash
+      # State lives on the platform (SB1): the runner exports TF_HTTP_* per job
+      # (address = …/state/tfstate/{component}/{env}, run token as password), so
+      # `backend "http"` needs no -backend-config and no AWS credentials step.
+      # The environment is IN the address — no terraform workspaces.
       run: |
         set -euo pipefail
 
         terraform -chdir={{ .parameters.terraformDir }} init \
           -input=false \
-          -reconfigure \
-          -backend-config="bucket={{.parameters.orgName}}-{{.orun.environment.name}}" \
-          -backend-config="key={{.parameters.repo}}/{{.orun.component.name}}/terraform.tfstate" \
-          -backend-config="region=${AWS_REGION:-{{.parameters.awsRegion}}}"
-      onFailure: stop
-
-    - id: terraform-workspace
-      name: Workspace
-      capability: terraform.workspace
-      shell: bash
-      run: |
-        set -euo pipefail
-
-        terraform -chdir={{ .parameters.terraformDir }} workspace select -or-create {{ .orun.environment.name }}
-        echo "TF_WORKSPACE={{ .orun.environment.name }}" >> "$ORUN_ENV"
+          -reconfigure
       onFailure: stop
 
     - id: terraform-validate
@@ -120,4 +99,31 @@ spec:
       name: Apply
       capability: terraform.apply
       run: "terraform -chdir={{ .parameters.terraformDir }} apply -no-color -auto-approve"
+      onFailure: stop
+
+    - id: wire-secrets
+      name: Wire outputs to orun secrets
+      capability: terraform.wire-secrets
+      shell: bash
+      # Post-apply secret WRITES go through orun (no Secrets Manager): each
+      # KEY=output pair in wireSecrets pushes `terraform output -raw <output>`
+      # into the project/{{env}} secret rung via `orun secrets set` (value over
+      # stdin — never echoed, never in argv). Downstream consumers read the
+      # same keys back as secretEnv references. The (org, project) scope is
+      # parsed from the runner-exported TF_HTTP_ADDRESS, so this step needs no
+      # extra parameters and works in any workspace the run targets.
+      run: |
+        {{- if .parameters.wireSecrets }}
+        set -euo pipefail
+        org=$(printf '%s' "$TF_HTTP_ADDRESS" | sed -E 's#.*/organizations/([^/]+)/projects/.*#\1#')
+        for pair in $(echo "{{ .parameters.wireSecrets }}" | tr ',' ' '); do
+          key="${pair%%=*}"
+          output="${pair#*=}"
+          terraform -chdir={{ .parameters.terraformDir }} output -raw "$output" | \
+            orun secrets set "$key" --org "$org" --project --env "{{ .orun.environment.name }}"
+          echo "wired $key ← output/$output"
+        done
+        {{- else }}
+        echo "wire-secrets: no wireSecrets declared; skipping."
+        {{- end }}
       onFailure: stop

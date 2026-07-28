@@ -13,7 +13,7 @@ spec:
         - cloudflare-worker-turbo.install
         - cloudflare-worker-turbo.verify-structure
         # Offline fixture render only — verify lanes must never need cloud
-        # credentials (BF6 D5 guard); wire-credentials/wire-live are deploy-only.
+        # credentials (BF6 D5 guard); wire-live is deploy-only.
         - cloudflare-worker-turbo.wire-fixture
         - cloudflare-worker-turbo.build
         - cloudflare-worker-turbo.typecheck

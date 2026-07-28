@@ -13,12 +13,10 @@ spec:
 
   capabilities:
     - cloudflare-domain.setup
-    - cloudflare-domain.aws-credentials
     - cloudflare-domain.env
     - cloudflare-domain.context
     - cloudflare-domain.fmt
     - cloudflare-domain.init
-    - cloudflare-domain.workspace
     - cloudflare-domain.validate
     - cloudflare-domain.plan
     - cloudflare-domain.apply
@@ -31,16 +29,6 @@ spec:
       with:
         terraform_version: "{{.parameters.terraformVersion}}"
         terraform_wrapper: "false"
-
-    - id: aws-credentials
-      name: Configure AWS Credentials
-      capability: cloudflare-domain.aws-credentials
-      use: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: "arn:aws:iam::{{.parameters.awsAccountId}}:role/{{.orun.environment.name}}-github-{{.parameters.owner}}-{{.parameters.repo}}-plan"
-        aws-region: "{{.parameters.awsRegion}}"
-        audience: sts.amazonaws.com
-      onFailure: stop
 
     - id: terraform-env
       name: Export Terraform Env
@@ -89,21 +77,7 @@ spec:
 
         terraform -chdir={{ .parameters.terraformDir }} init \
           -input=false \
-          -reconfigure \
-          -backend-config="bucket={{.parameters.orgName}}-{{.orun.environment.name}}" \
-          -backend-config="key={{.parameters.repo}}/{{.orun.component.name}}/terraform.tfstate" \
-          -backend-config="region=${AWS_REGION:-{{.parameters.awsRegion}}}"
-      onFailure: stop
-
-    - id: terraform-workspace
-      name: Workspace
-      capability: cloudflare-domain.workspace
-      shell: bash
-      run: |
-        set -euo pipefail
-
-        terraform -chdir={{ .parameters.terraformDir }} workspace select -or-create {{ .orun.environment.name }}
-        echo "TF_WORKSPACE={{ .orun.environment.name }}" >> "$ORUN_ENV"
+          -reconfigure
       onFailure: stop
 
     - id: terraform-validate

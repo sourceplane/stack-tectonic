@@ -12,5 +12,4 @@ spec:
         - db-migrate.setup-pnpm
         - db-migrate.install
         - db-migrate.build
-        - db-migrate.aws-credentials
         - db-migrate.plan

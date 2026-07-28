@@ -20,11 +20,8 @@ the run belongs to.
 - **Job:** `migrate` (default) — `jobs/db-migrate-run.yaml`
 - **Default profile:** `apply`
 - **Required parameters:** `nodeVersion`, `pnpmVersion`, `secretName`
-- **Optional parameters:** `awsAccountId` (AWS account ID hosting the
-  GitHub-OIDC role this component assumes), `awsRegion`, `owner`, `repo`
+- **Optional parameters:** `owner`, `repo`
 
-`awsAccountId`, `awsRegion`, `owner`, and `repo` are optional in the schema but
-are all interpolated into the `aws-credentials` step, so a component that runs
 either profile in CI needs them set.
 
 ## Profiles
@@ -33,7 +30,7 @@ Each file in `profiles/` selects steps from the job by capability.
 
 | Profile           | Steps |
 | ----------------- | ----- |
-| `plan`            | setup-node → setup-pnpm → install → build → aws-credentials → plan. Reports pending migrations without mutating the database; used on pull requests. |
+| `plan`            | setup-node → setup-pnpm → install → build → plan. Reports pending migrations without mutating the database; used on pull requests. |
 | `apply` (default) | the same setup steps followed by `apply` instead of `plan`. Applies pending migrations to the live database post-merge. |
 
 `setup-pnpm` is declared before `setup-node` in the job so `setup-node` can warm

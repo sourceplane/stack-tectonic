@@ -37,7 +37,6 @@ spec:
         - cloudflare-worker-turbo.typecheck
         # BF6: resolve binding IDs from the Secrets Manager wiring manifest at
         # deploy time (no-op for workers without a wrangler template).
-        - cloudflare-worker-turbo.wire-credentials
         - cloudflare-worker-turbo.wire-live
         - cloudflare-worker-turbo.pre-deploy
         - cloudflare-worker-turbo.migrate
