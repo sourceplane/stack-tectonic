@@ -3,7 +3,7 @@ kind: Stack
 metadata:
   name: stack-tectonic
   title: Stack Tectonic
-  version: 0.17.2
+  version: 0.17.3
   description: Versioned OCI-hosted catalog of Cloudflare, Terraform and monorepo compositions for Sourceplane repositories.
   owner: sourceplane
   tags:
