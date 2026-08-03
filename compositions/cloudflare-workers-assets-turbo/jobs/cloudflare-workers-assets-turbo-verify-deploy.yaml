@@ -114,6 +114,7 @@ spec:
       capability: cloudflare-workers-assets-turbo.smoke
       shell: bash
       run: |
+        set -uo pipefail
         export ORUN_ENVIRONMENT="{{ .orun.environment.name }}"
         {{- if .parameters.environmentAwareWorkerName }}
         export EFFECTIVE_WORKER_NAME="{{ .parameters.workerName }}-{{ .orun.environment.name }}"
@@ -124,5 +125,27 @@ spec:
         export WORKERS_DEV_SUBDOMAIN="{{ .parameters.workersDevSubdomain }}"
         export DEPLOYED_URL="https://${EFFECTIVE_WORKER_NAME}.${WORKERS_DEV_SUBDOMAIN}.workers.dev"
         {{- end }}
-        {{ .parameters.smokeCommand }}
+        # smokeCommand runs under retry-with-backoff: a brand-new workers.dev
+        # route can take MINUTES to resolve on a first deploy (measured live
+        # — a console route 404'd for minutes then served 200), and a raw
+        # single-shot probe parks the whole convergence (and every DAG
+        # dependent) on a manual rerun. ~4.5 min budget; a real regression
+        # still fails after it.
+        smoke() {
+          {{ .parameters.smokeCommand }}
+        }
+        attempts=10
+        for i in $(seq 1 "$attempts"); do
+          if smoke; then
+            [ "$i" -gt 1 ] && echo "smoke passed on attempt $i/$attempts"
+            exit 0
+          fi
+          if [ "$i" -lt "$attempts" ]; then
+            wait=$(( i * 6 )); [ "$wait" -gt 45 ] && wait=45
+            echo "smoke attempt $i/$attempts failed — retrying in ${wait}s"
+            sleep "$wait"
+          fi
+        done
+        echo "smoke failed after $attempts attempts (~4.5m budget)"
+        exit 1
       onFailure: stop

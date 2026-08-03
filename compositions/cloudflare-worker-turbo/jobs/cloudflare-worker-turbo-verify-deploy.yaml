@@ -221,18 +221,18 @@ spec:
         smoke() {
           {{ .parameters.smokeCommand }}
         }
-        attempts=6
+        attempts=10
         for i in $(seq 1 "$attempts"); do
           if smoke; then
             [ "$i" -gt 1 ] && echo "smoke passed on attempt $i/$attempts"
             exit 0
           fi
           if [ "$i" -lt "$attempts" ]; then
-            wait=$(( i * 5 ))
+            wait=$(( i * 6 )); [ "$wait" -gt 45 ] && wait=45
             echo "smoke attempt $i/$attempts failed — retrying in ${wait}s"
             sleep "$wait"
           fi
         done
-        echo "smoke failed after $attempts attempts"
+        echo "smoke failed after $attempts attempts (~4.5m budget)"
         exit 1
       onFailure: stop
