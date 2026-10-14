@@ -104,9 +104,24 @@ spec:
         EFFECTIVE_WORKER_NAME="{{ .parameters.workerName }}"
         {{- end }}
 
-        pnpm exec wrangler deploy \
-          --config "{{ .parameters.wranglerConfig }}" \
-          --name "${EFFECTIVE_WORKER_NAME}"
+        # Same first-deploy race as cloudflare-worker-turbo (Cloudflare code
+        # 10007 right after the upload); the deploy is idempotent, so retry.
+        attempts=3
+        for i in $(seq 1 "$attempts"); do
+          if pnpm exec wrangler deploy \
+            --config "{{ .parameters.wranglerConfig }}" \
+            --name "${EFFECTIVE_WORKER_NAME}"; then
+            [ "$i" -gt 1 ] && echo "deploy passed on attempt $i/$attempts"
+            exit 0
+          fi
+          if [ "$i" -lt "$attempts" ]; then
+            wait=$(( i * 10 ))
+            echo "deploy attempt $i/$attempts failed — retrying in ${wait}s"
+            sleep "$wait"
+          fi
+        done
+        echo "deploy failed after $attempts attempts"
+        exit 1
       onFailure: stop
 
     - id: smoke
