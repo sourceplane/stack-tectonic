@@ -42,10 +42,22 @@ spec:
       with:
         version: "{{ .parameters.pnpmVersion }}"
 
+    # ONE INSTALL PER LANE (orun ≥ 2.78.2, runner-efficiency RE4). Every job
+    # of a lane runs the same workspace install, and a lane of twelve workers
+    # used to run it twelve times on one runner, at once. `scope: lane` runs
+    # it once in the shared source tree, after the setup actions and before
+    # each job's private tree is staged; the other jobs wait for that run and
+    # reuse it. A lane-scoped step is shared only when its command, shell,
+    # environment and working directory match across jobs, so it runs at the
+    # monorepo root (`workspaceDir`), the same directory for every component;
+    # a workspace install from any directory installs the whole workspace
+    # anyway. An older orun ignores `scope` and runs it per job at the root.
     - id: install-workspace-dependencies
       name: install-workspace-dependencies
       capability: cloudflare-worker-turbo.install
+      scope: lane
       shell: bash
+      working-directory: "{{ .parameters.workspaceDir }}"
       run: "{{ .parameters.installCommand }}"
       onFailure: stop
 
