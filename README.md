@@ -114,7 +114,8 @@ Most compositions carry their own `README.md` with parameter and profile detail 
 1. Update `metadata.version` in `stack.yaml`.
 2. Run `./scripts/verify.sh`.
 3. Merge to `main`.
-4. Push a matching tag like `v0.13.0`.
+4. Push a matching tag like `v0.13.0`, or run the **Release** workflow from `main` (Actions →
+   Release → Run workflow), which creates the `v<version>` tag from `stack.yaml` itself.
 
 The release workflow asserts the tag matches `stack.yaml`, reruns `./scripts/verify.sh`, creates the
 GitHub release, then publishes the OCI package and confirms it is pullable with `orun fetch`. The

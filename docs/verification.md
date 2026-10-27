@@ -84,12 +84,16 @@ that skipped pre-build; this one would have failed them.
 
 ## Release workflow
 
-`.github/workflows/release.yml` runs on tag pushes matching `v*`:
+`.github/workflows/release.yml` runs on tag pushes matching `v*`, and from its **Run workflow**
+button (`workflow_dispatch`):
 
-1. Derive the version from `metadata.version` in `stack.yaml` and assert it equals the tag without
-   its leading `v`. A mismatched tag fails the release before anything is published.
+1. Derive the version from `metadata.version` in `stack.yaml`. On a tag push, assert it equals the
+   tag without its leading `v`; a mismatched tag fails the release before anything is published. On
+   a dispatched run the tag is `v<version>`: the run must be on `main`, and it stops if that tag
+   already points at a different commit, so a version cannot be released twice from two commits.
 2. Run `./scripts/verify.sh` — the same gate the pull request ran.
-3. Create the GitHub release with `gh release create --generate-notes`, skipping if it already exists.
+3. Create the GitHub release with `gh release create --generate-notes` on the run's commit, skipping
+   if it already exists. On a dispatched run this is also what creates the tag.
 4. Publish the OCI package with an explicit target. The target is passed explicitly because with no
    ref `orun` infers `ghcr.io/<owner>/<repo>/<package>` from the git remote, which is the wrong
    repository path.
