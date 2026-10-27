@@ -50,7 +50,7 @@ spec:
       capability: turbo-package.pre-build
       shell: bash
       run: |
-        {{if .preBuildCommand}}
+        {{if .parameters.preBuildCommand}}
         {{.parameters.preBuildCommand}}
         {{else}}
         echo "Skipping pre-build."
@@ -66,11 +66,11 @@ spec:
     - id: build-package
       name: build-package
       capability: turbo-package.build
-      run: "{{if .buildCommand}}{{.parameters.buildCommand}}{{else}}pnpm exec turbo run build --filter=./{{end}}"
+      run: "{{if .parameters.buildCommand}}{{.parameters.buildCommand}}{{else}}pnpm exec turbo run build --filter=./{{end}}"
       onFailure: stop
 
     - id: typecheck-package
       name: typecheck-package
       capability: turbo-package.typecheck
-      run: "{{if .typecheckCommand}}{{.parameters.typecheckCommand}}{{else}}pnpm exec turbo run typecheck --filter=./{{end}}"
+      run: "{{if .parameters.typecheckCommand}}{{.parameters.typecheckCommand}}{{else}}pnpm exec turbo run typecheck --filter=./{{end}}"
       onFailure: stop

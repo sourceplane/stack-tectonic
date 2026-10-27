@@ -35,6 +35,22 @@ done
 test "$expected" -gt 0 || { echo "verify: no compositions found" >&2; exit 1; }
 echo "verify: $expected composition contract(s) structurally valid"
 
+# A job template sees exactly three namespaces: .orun, .parameters and .env
+# (orun's planner builds no others). A condition on anything else is always
+# false, so its step silently takes the else branch for every consumer. That is
+# how turbo-package's pre-build skipped every component's tests from 0.18 to
+# 0.20.0 while its lanes went green. Inside a range or with block `.` is
+# rebound; use a variable there ({{ $x := ... }}) so this rule can see it.
+bad_guards="$(grep -rnoE '\{\{-?[[:space:]]*(else[[:space:]]+)?(if|with)[[:space:]][^}]*' compositions \
+  | grep -oE '^[^:]+:[0-9]+:|[[:space:](]\.[A-Za-z_][A-Za-z0-9_]*' \
+  | awk '/^[^ (.]/{loc=$0; next} {key=$0; sub(/^[[:space:](]\./, "", key); if (key != "orun" && key != "parameters" && key != "env") print loc " ." key}')"
+if [ -n "$bad_guards" ]; then
+  echo "verify: these guards read a key the template context does not have (it has .orun, .parameters, .env):" >&2
+  echo "$bad_guards" >&2
+  exit 1
+fi
+echo "verify: every template guard reads .orun, .parameters or .env"
+
 # Resolve the publish target and version without uploading.
 orun publish "ghcr.io/sourceplane/stack-tectonic:${stack_version}" \
   --dry-run \
@@ -83,3 +99,68 @@ for contract in "$repo_root"/compositions/*/composition.yaml; do
 done
 
 echo "verify: all $expected composition(s) export from the packed artifact"
+
+# Render, not just resolve: plan a turbo-package component through the packed
+# artifact and check its declared commands reach the steps. Structural checks
+# passed every release that skipped pre-build; this one would have failed.
+fixture="$work_dir/consumer"
+mkdir -p "$fixture/packages/declared" "$fixture/packages/defaults"
+cat > "$fixture/intent.yaml" <<EOF
+apiVersion: sourceplane.io/v1
+kind: Intent
+metadata:
+  name: stack-tectonic-render
+compositions:
+  sources:
+    - name: stack-tectonic
+      kind: archive
+      path: $work_dir/stack.tgz
+discovery:
+  roots:
+    - packages/
+environments:
+  dev: {}
+EOF
+for pkg in declared defaults; do
+  {
+    echo "apiVersion: sourceplane.io/v1"
+    echo "kind: Component"
+    echo "metadata:"
+    echo "  name: $pkg"
+    echo "spec:"
+    echo "  type: turbo-package"
+    echo "  subscribe:"
+    echo "    environments:"
+    echo "      - name: dev"
+    echo "        profile: verify"
+    echo "  parameters:"
+    echo "    nodeVersion: \"20\""
+    echo "    pnpmVersion: \"10.12.1\""
+    if [ "$pkg" = declared ]; then
+      echo "    preBuildCommand: echo render-check-pre-build"
+      echo "    buildCommand: echo render-check-build"
+      echo "    typecheckCommand: echo render-check-typecheck"
+    fi
+  } > "$fixture/packages/$pkg/component.yaml"
+done
+(cd "$fixture" && orun plan --no-catalog-refresh --format json --output plan.json >/dev/null)
+
+step_run() { # <job-id prefix> <step id>
+  jq -r --arg j "$1" --arg s "$2" \
+    '.jobs[] | select(.id | startswith($j + ".")) | .steps[] | select(.id == $s) | .run' \
+    "$fixture/plan.json"
+}
+expect() { # <job> <step> <text the rendered run must contain>
+  run="$(step_run "$1" "$2")"
+  case "$run" in
+    *"$3"*) ;;
+    *) echo "verify: turbo-package rendered $1/$2 as '$run', expected it to contain '$3'" >&2; exit 1 ;;
+  esac
+}
+expect declared pre-build         "echo render-check-pre-build"
+expect declared build-package     "echo render-check-build"
+expect declared typecheck-package "echo render-check-typecheck"
+expect defaults pre-build         'echo "Skipping pre-build."'
+expect defaults build-package     "pnpm exec turbo run build --filter=./"
+expect defaults typecheck-package "pnpm exec turbo run typecheck --filter=./"
+echo "verify: turbo-package renders declared commands and falls back to its defaults"

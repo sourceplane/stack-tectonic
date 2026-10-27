@@ -4,7 +4,7 @@ The catalog has one gate, `scripts/verify.sh`, and two workflows that run it.
 
 ## `scripts/verify.sh`
 
-The script runs from the repository root and executes four stages in order. Any failure stops the run.
+The script runs from the repository root and executes six stages in order. Any failure stops the run.
 
 ### 1. Structural validation of every composition contract
 
@@ -18,7 +18,19 @@ For each `compositions/*/composition.yaml`:
 The run also fails if no composition directories are found at all, so an empty or mis-staged tree
 cannot pass silently.
 
-### 2. Publish target resolution
+### 2. Every template guard reads a namespace the job can see
+
+A job template is rendered with exactly three namespaces: `.orun`, `.parameters` and `.env`. A
+condition on any other key is always false, so the step takes its `else` branch for every consumer
+and nothing fails. Every `{{if ...}}` and `{{with ...}}` in `compositions/` must therefore read one of
+those three.
+
+This is the bug that shipped in 0.18.1 through 0.20.0: `turbo-package` guarded pre-build, build and
+typecheck on `.preBuildCommand`, `.buildCommand` and `.typecheckCommand`, so pre-build skipped every
+component's tests and declared build and typecheck commands were ignored. Inside a `range` or `with`
+block `.` is rebound; bind a variable there so this rule can still read the expression.
+
+### 3. Publish target resolution
 
 ```bash
 orun publish "ghcr.io/sourceplane/stack-tectonic:${stack_version}" \
@@ -28,13 +40,13 @@ orun publish "ghcr.io/sourceplane/stack-tectonic:${stack_version}" \
 `stack_version` is read from `metadata.version` in `stack.yaml`. This resolves the manifest and the
 registry target without uploading anything.
 
-### 3. Pack the shipped layers
+### 4. Pack the shipped layers
 
 `orun pack` archives whatever root it is given, but `orun publish` ships only `stack.yaml`,
 `compositions/`, and `examples/`. The script stages exactly that subset into a temporary directory
 and packs it, so the artifact under test is the artifact consumers actually resolve.
 
-### 4. Resolve the packed artifact back through a consumer intent
+### 5. Resolve the packed artifact back through a consumer intent
 
 The script writes a throwaway `intent.yaml` pointing at the packed tarball with an `archive`
 composition source:
@@ -54,6 +66,15 @@ This last stage is the point of the script. A dry-run publish only proves the ma
 resolve; it is no evidence the package is loadable. Packing and re-resolving exercises the same code
 path a consumer repository runs, so a composition Orun cannot load or export fails here instead of
 in a downstream repo after release.
+
+### 6. Render `turbo-package` through the packed artifact
+
+Resolving proves a composition loads, not that it renders what a component declares. The script plans
+two fixture components through the same packed artifact, one declaring `preBuildCommand`,
+`buildCommand` and `typecheckCommand` and one declaring none, on the `verify` profile. It then checks
+the rendered steps: the first must run its three commands, and the second must skip pre-build and use
+the default `turbo run build` and `turbo run typecheck`. Every structural check passed on the releases
+that skipped pre-build; this one would have failed them.
 
 ## Verify workflow
 
