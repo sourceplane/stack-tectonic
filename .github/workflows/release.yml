@@ -4,6 +4,16 @@ on:
   push:
     tags:
       - "v*"
+  # The "Run workflow" button (Actions -> Release). It releases the version
+  # stack.yaml declares on main: it creates the v<version> tag and the release
+  # on the commit it ran from, then verifies and publishes exactly as a tag push
+  # does. For when a tag cannot be pushed from where the release is cut.
+  workflow_dispatch:
+
+# One release at a time: two runs publishing the same version would race.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -35,10 +45,28 @@ jobs:
         shell: bash
         run: |
           stack_version="$(awk '/^  version: /{print $2}' stack.yaml)"
-          tag_version="${GITHUB_REF_NAME#v}"
           test -n "${stack_version}"
-          test "${stack_version}" = "${tag_version}"
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            # A dispatched release names its own tag, from main only.
+            if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+              echo "::error::Run the release from main, not ${GITHUB_REF}."
+              exit 1
+            fi
+            release_tag="v${stack_version}"
+            # A version is released from one commit. An existing tag on another
+            # commit means stack.yaml was not bumped; on this commit it is a
+            # re-run of this release, which carries on as a tag push would.
+            existing="$(git rev-list -n 1 "refs/tags/${release_tag}" 2>/dev/null || true)"
+            if [ -n "${existing}" ] && [ "${existing}" != "${GITHUB_SHA}" ]; then
+              echo "::error::${release_tag} already points at ${existing}. Bump metadata.version in stack.yaml to release ${GITHUB_SHA}."
+              exit 1
+            fi
+          else
+            release_tag="${GITHUB_REF_NAME}"
+            test "${stack_version}" = "${release_tag#v}"
+          fi
           echo "STACK_VERSION=${stack_version}" >> "${GITHUB_ENV}"
+          echo "RELEASE_TAG=${release_tag}" >> "${GITHUB_ENV}"
 
       - name: Verify catalog
         run: ./scripts/verify.sh
@@ -47,13 +75,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
-            echo "Release ${GITHUB_REF_NAME} already exists."
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "Release ${RELEASE_TAG} already exists."
             exit 0
           fi
 
-          gh release create "${GITHUB_REF_NAME}" \
-            --title "${GITHUB_REF_NAME}" \
+          # --target names the commit: on a dispatched run it is where the new
+          # tag is created; on a tag push the tag already points there.
+          gh release create "${RELEASE_TAG}" \
+            --title "${RELEASE_TAG}" \
+            --target "${GITHUB_SHA}" \
             --generate-notes
 
       # Runs after the release so the tag and release notes are the record of
