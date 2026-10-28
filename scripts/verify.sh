@@ -164,3 +164,74 @@ expect defaults pre-build         'echo "Skipping pre-build."'
 expect defaults build-package     "pnpm exec turbo run build --filter=./"
 expect defaults typecheck-package "pnpm exec turbo run typecheck --filter=./"
 echo "verify: turbo-package renders declared commands and falls back to its defaults"
+
+# cloudflare-worker-turbo's deploy step passes --x-provision=false only when a
+# component sets skipResourceProvisioning: absent or false keeps wrangler's
+# default, so no consumer changes behaviour until it opts in. The deploy
+# profile binds secrets, so this fixture declares a placeholder workspace.
+workers="$work_dir/workers"
+mkdir -p "$workers/apps/opted-in" "$workers/apps/default"
+cat > "$workers/intent.yaml" <<EOT
+apiVersion: sourceplane.io/v1
+kind: Intent
+metadata:
+  name: stack-tectonic-render-workers
+execution:
+  state:
+    workspace: ws_rendercheck
+    project: render-check
+compositions:
+  sources:
+    - name: stack-tectonic
+      kind: archive
+      path: $work_dir/stack.tgz
+discovery:
+  roots:
+    - apps/
+environments:
+  stage: {}
+EOT
+for worker in opted-in default; do
+  {
+    echo "apiVersion: sourceplane.io/v1"
+    echo "kind: Component"
+    echo "metadata:"
+    echo "  name: $worker"
+    echo "spec:"
+    echo "  type: cloudflare-worker-turbo"
+    echo "  subscribe:"
+    echo "    environments:"
+    echo "      - name: stage"
+    echo "        profile: deploy"
+    echo "  parameters:"
+    echo "    nodeVersion: \"20\""
+    echo "    pnpmVersion: \"10.12.1\""
+    echo "    workspaceDir: ../.."
+    echo "    appDir: ."
+    echo "    turboFilter: $worker"
+    echo "    wranglerConfig: wrangler.jsonc"
+    [ "$worker" = opted-in ] && echo "    skipResourceProvisioning: true"
+  } > "$workers/apps/$worker/component.yaml"
+done
+(cd "$workers" && orun plan --no-catalog-refresh --format json --output plan.json >/dev/null)
+deploy_run() { # <component>
+  jq -r --arg j "$1" \
+    '.jobs[] | select(.id | startswith($j + ".")) | .steps[] | select(.id == "deploy") | .run' \
+    "$workers/plan.json"
+}
+opted_in="$(deploy_run opted-in)"
+default_run="$(deploy_run default)"
+case "$opted_in" in
+  *'provision_flag="--x-provision=false"'*) ;;
+  *) echo "verify: cloudflare-worker-turbo deploy ignores skipResourceProvisioning: true" >&2; exit 1 ;;
+esac
+case "$default_run" in
+  *"--x-provision=false"*) echo "verify: cloudflare-worker-turbo deploy skips provisioning without being asked to" >&2; exit 1 ;;
+esac
+for run in "$opted_in" "$default_run"; do
+  case "$run" in
+    *'wrangler deploy --config wrangler.jsonc --env stage $provision_flag'*) ;;
+    *) echo "verify: cloudflare-worker-turbo deploy command changed shape: $run" >&2; exit 1 ;;
+  esac
+done
+echo "verify: cloudflare-worker-turbo passes --x-provision=false only when a component opts in"

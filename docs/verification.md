@@ -4,7 +4,7 @@ The catalog has one gate, `scripts/verify.sh`, and two workflows that run it.
 
 ## `scripts/verify.sh`
 
-The script runs from the repository root and executes six stages in order. Any failure stops the run.
+The script runs from the repository root and executes seven stages in order. Any failure stops the run.
 
 ### 1. Structural validation of every composition contract
 
@@ -75,6 +75,15 @@ two fixture components through the same packed artifact, one declaring `preBuild
 the rendered steps: the first must run its three commands, and the second must skip pre-build and use
 the default `turbo run build` and `turbo run typecheck`. Every structural check passed on the releases
 that skipped pre-build; this one would have failed them.
+
+### 7. Render `cloudflare-worker-turbo`'s deploy with and without `skipResourceProvisioning`
+
+The script plans two fixture workers on the `deploy` profile, one setting `skipResourceProvisioning:
+true` and one leaving it out. The deploy profile binds secrets, so this fixture's intent declares a
+placeholder workspace and project; nothing is resolved at plan time. The first worker's deploy step
+must pass `--x-provision=false` to `wrangler deploy`, the second's must not, and both must keep the
+same `wrangler deploy --config ... --env ...` command. A consumer that has not opted in therefore
+deploys exactly as before.
 
 ## Verify workflow
 

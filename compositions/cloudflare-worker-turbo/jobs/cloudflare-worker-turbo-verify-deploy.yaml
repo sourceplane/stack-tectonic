@@ -175,9 +175,18 @@ spec:
         # "This Worker does not exist on your account" (code 10007). The
         # deploy is idempotent, so retry it a few times with a short wait
         # instead of parking the whole convergence on a resume.
+        #
+        # skipResourceProvisioning: wrangler's provisioning reads every R2
+        # bucket binding over the API before the upload, so the deploy token
+        # would need R2 permission (the brokered workers-deploy token has
+        # none). Where Terraform owns the resources, turn it off.
+        provision_flag=""
+        {{- if .parameters.skipResourceProvisioning }}
+        provision_flag="--x-provision=false"
+        {{- end }}
         attempts=3
         for i in $(seq 1 "$attempts"); do
-          if pnpm exec wrangler deploy --config {{ .parameters.wranglerConfig }} --env {{ .orun.environment.name }}; then
+          if pnpm exec wrangler deploy --config {{ .parameters.wranglerConfig }} --env {{ .orun.environment.name }} $provision_flag; then
             [ "$i" -gt 1 ] && echo "deploy passed on attempt $i/$attempts"
             exit 0
           fi
