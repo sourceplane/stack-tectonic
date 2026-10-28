@@ -29,6 +29,13 @@ be hydrated from an escrow after deploy.
   `wiringEnvs` (default `stage,prod`), `wiringFixture` (default
   `wiring.fixture.json`), `runtimeSecrets` (default
   `us-east-1`), `orgName`, `owner`, `repo`
+- **Optional deploy parameter:** `skipResourceProvisioning` (default `false`).
+  When `true`, the deploy step passes `--x-provision=false`, so wrangler does
+  not provision resources or check them over the API. Without it, every R2
+  bucket binding is read from the R2 API before the upload, and a deploy
+  token without R2 permission (the brokered `workers-deploy` template) fails
+  with `Authentication error [code: 10000]` on `/r2/buckets/<name>`. Set it
+  where Terraform components own every resource the bindings name.
 
 ## Profiles
 

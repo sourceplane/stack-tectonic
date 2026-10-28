@@ -66,6 +66,10 @@ spec:
             type: string
             default: wiring.fixture.json
             description: Committed placeholder wiring map used for offline verify/dry-run rendering
+          skipResourceProvisioning:
+            type: boolean
+            default: false
+            description: Pass --x-provision=false to wrangler deploy. Wrangler then skips its own resource provisioning, which reads every R2 bucket binding over the API and so needs R2 permission on the deploy token. Set it when Terraform components own every resource the bindings name.
           runtimeSecrets:
             type: string
             default: ""
