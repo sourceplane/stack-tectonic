@@ -4,7 +4,7 @@ The catalog has one gate, `scripts/verify.sh`, and two workflows that run it.
 
 ## `scripts/verify.sh`
 
-The script runs from the repository root and executes seven stages in order. Any failure stops the run.
+The script runs from the repository root and executes eight stages in order. Any failure stops the run.
 
 ### 1. Structural validation of every composition contract
 
@@ -84,6 +84,19 @@ placeholder workspace and project; nothing is resolved at plan time. The first w
 must pass `--x-provision=false` to `wrangler deploy`, the second's must not, and both must keep the
 same `wrangler deploy --config ... --env ...` command. A consumer that has not opted in therefore
 deploys exactly as before.
+
+### 8. Render `db-migrate`'s build step with and without `buildFilter`
+
+The script plans two migration components through the packed artifact, on stage and prod: the
+composition's own smoke fixture, which sets `buildFilter: "@example/db"`, and one that leaves it out.
+Every build step of the first must render `pnpm exec turbo run build --filter=@example/db`. Every
+build step of the second must render `pnpm exec turbo run build --filter=@saas/db`, the exact 0.21.0
+command, so a consumer that does not set the parameter plans as before.
+
+orun does not copy a schema's `default` into `.parameters`, so the default comes from the template's
+`else` branch. A guard and a value that read different keys still renders a green build of `@saas/db`,
+and the mismatch only shows when the apply step fails with `MODULE_NOT_FOUND`. This stage fails on it
+instead.
 
 ## Verify workflow
 

@@ -1,0 +1,53 @@
+apiVersion: sourceplane.io/v1
+kind: Component
+
+metadata:
+  name: example-db-migrate
+  description: Applies the example product's migration ladder to its stage and prod Supabase databases
+
+spec:
+  type: db-migrate
+  lifecycle: production
+  owner: platform
+  domain: infra
+
+  dependsOn:
+    - component: example-db
+    - component: example-supabase
+
+  # The job runs `node ../../dist/runner/cli.js` from here, so the migrations
+  # sit two levels below the package buildFilter builds.
+  path: packages/db/src/migrations
+
+  parameters:
+    nodeVersion: "20"
+    pnpmVersion: "10.12.1"
+    # The db package is not @saas/db, so name it. Left out, the build step
+    # builds @saas/db and the apply step fails with MODULE_NOT_FOUND.
+    buildFilter: "@example/db"
+
+  secretEnv:
+    SUPABASE_ACCESS_TOKEN: "secret://example/example/{{ .environment }}/SUPABASE_ACCESS_TOKEN"
+    SUPABASE_PROJECT_REF: "secret://example/example/{{ .environment }}/SUPABASE_PROJECT_REF"
+    SUPABASE_DB_PASSWORD: "secret://example/example/{{ .environment }}/SUPABASE_DB_PASSWORD"
+    SUPABASE_DB_URL: "secret://example/example/{{ .environment }}/SUPABASE_DB_URL"
+
+  subscribe:
+    environments:
+      - name: stage
+        profile: plan
+        profileRules:
+          - profile: apply
+            when:
+              triggerRef: github-push-main
+      - name: prod
+        profile: plan
+        profileRules:
+          - profile: apply
+            when:
+              triggerRef: github-push-main
+
+  labels:
+    team: platform
+    layer: data
+    scope: database
