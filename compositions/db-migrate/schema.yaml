@@ -28,6 +28,15 @@ spec:
             type: string
           pnpmVersion:
             type: string
+          buildFilter:
+            type: string
+            minLength: 1
+            default: "@saas/db"
+            description: >-
+              Turbo filter for the package whose dist/runner/cli.js runs the
+              migrations. The job reaches it as ../../dist/runner/cli.js, so it
+              must be the package that holds this component's migrations
+              directory. Defaults to @saas/db.
           owner:
             type: string
           repo:

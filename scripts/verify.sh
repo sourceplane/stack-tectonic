@@ -235,3 +235,71 @@ for run in "$opted_in" "$default_run"; do
   esac
 done
 echo "verify: cloudflare-worker-turbo passes --x-provision=false only when a component opts in"
+
+# db-migrate builds the package a component's buildFilter names, and @saas/db
+# when it names none, byte for byte the 0.21.0 command. orun does not copy
+# schema defaults into .parameters, so the template's else branch is the
+# default. A guard and value on different keys renders @saas/db for everyone:
+# the build goes green and only apply fails, on MODULE_NOT_FOUND. The component
+# that sets buildFilter is the composition's own smoke fixture, so this also
+# plans that fixture against the schema.
+migrations="$work_dir/db-migrate"
+mkdir -p "$migrations/infra/declared" "$migrations/infra/default"
+cp "$repo_root/compositions/db-migrate/tests/smoke/component.yaml" "$migrations/infra/declared/component.yaml"
+cat > "$migrations/infra/default/component.yaml" <<EOT
+apiVersion: sourceplane.io/v1
+kind: Component
+metadata:
+  name: saas-db-migrate
+spec:
+  type: db-migrate
+  path: packages/db/src/migrations
+  parameters:
+    nodeVersion: "20"
+    pnpmVersion: "10.12.1"
+  subscribe:
+    environments:
+      - name: stage
+        profile: plan
+      - name: prod
+        profile: apply
+EOT
+cat > "$migrations/intent.yaml" <<EOT
+apiVersion: sourceplane.io/v1
+kind: Intent
+metadata:
+  name: stack-tectonic-render-db-migrate
+compositions:
+  sources:
+    - name: stack-tectonic
+      kind: archive
+      path: $work_dir/stack.tgz
+discovery:
+  roots:
+    - infra/
+automation:
+  triggerBindings:
+    github-push-main:
+      on:
+        provider: github
+        event: push
+        branches:
+          - main
+environments:
+  stage: {}
+  prod: {}
+EOT
+(cd "$migrations" && orun plan --no-catalog-refresh --format json --output plan.json >/dev/null)
+expect_build() { # <component> <the exact command its stage and prod build steps must render>
+  builds="$(jq -c --arg c "$1" \
+    '[.jobs[] | select(.id | startswith($c + ".")) | .steps[] | select(.id == "build-db-package") | .run]' \
+    "$migrations/plan.json")"
+  want="$(jq -cn --arg r "$2" '[$r, $r]')"
+  if [ "$builds" != "$want" ]; then
+    echo "verify: db-migrate rendered $1's build steps as $builds, expected $want (stage and prod)" >&2
+    exit 1
+  fi
+}
+expect_build example-db-migrate "pnpm exec turbo run build --filter=@example/db"
+expect_build saas-db-migrate    "pnpm exec turbo run build --filter=@saas/db"
+echo "verify: db-migrate builds the declared buildFilter and falls back to @saas/db"

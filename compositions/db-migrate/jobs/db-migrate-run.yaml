@@ -47,7 +47,16 @@ spec:
     - id: build-db-package
       name: build-db-package
       capability: db-migrate.build
-      run: pnpm exec turbo run build --filter=@saas/db
+      # buildFilter names the package whose dist/runner/cli.js the plan and
+      # apply steps run. Absent, this renders exactly as 0.21.0 did. orun does
+      # not copy the schema's default into .parameters, so the else branch is
+      # what supplies @saas/db.
+      #
+      # The guard and the value must read the same key, .parameters.buildFilter.
+      # A guard on any other key is always false: the step builds @saas/db, goes
+      # green, and the mismatch only shows two steps later as MODULE_NOT_FOUND.
+      # verify.sh renders this step with and without the parameter.
+      run: pnpm exec turbo run build --filter={{if .parameters.buildFilter}}{{.parameters.buildFilter}}{{else}}@saas/db{{end}}
       onFailure: stop
 
     - id: migrate-plan

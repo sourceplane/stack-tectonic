@@ -95,7 +95,7 @@ Most compositions carry their own `README.md` with parameter and profile detail 
 - `.github/workflows/release.yml` runs the same script before publishing a tag.
 - Where a composition ships a smoke fixture under `compositions/<name>/tests/`, it is excerpted or
   adapted from a real consumer repository so the contract is documented with a real repo shape
-  instead of a synthetic placeholder. Five of the twelve have one today; see
+  instead of a synthetic placeholder. Six of the twelve have one today; see
   [docs/roadmap.md](docs/roadmap.md).
 
 ## Docs
