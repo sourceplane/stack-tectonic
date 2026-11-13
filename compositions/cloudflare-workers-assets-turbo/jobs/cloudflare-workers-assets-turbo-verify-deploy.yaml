@@ -146,21 +146,29 @@ spec:
         # single-shot probe parks the whole convergence (and every DAG
         # dependent) on a manual rerun. ~4.5 min budget; a real regression
         # still fails after it.
-        smoke() {
+        # Each attempt runs in a subshell with pipefail OFF. A smoke assertion is
+        # the last command of its pipe (`echo "$html" | grep -q x`, `curl | grep -q x`):
+        # grep -q exits at its first match, the writer then dies of SIGPIPE (141),
+        # and under pipefail that kills a check whose text WAS found, on every
+        # attempt, once the page outgrows the 64 KiB pipe buffer. Without pipefail
+        # a failed fetch still fails: grep sees no input and finds nothing.
+        smoke() (
+          set +o pipefail
           {{ .parameters.smokeCommand }}
-        }
+        )
         attempts=10
         for i in $(seq 1 "$attempts"); do
-          if smoke; then
+          smoke; rc=$?
+          if [ "$rc" -eq 0 ]; then
             [ "$i" -gt 1 ] && echo "smoke passed on attempt $i/$attempts"
             exit 0
           fi
           if [ "$i" -lt "$attempts" ]; then
             wait=$(( i * 6 )); [ "$wait" -gt 45 ] && wait=45
-            echo "smoke attempt $i/$attempts failed — retrying in ${wait}s"
+            echo "smoke attempt $i/$attempts failed (exit $rc$([ "$rc" -eq 141 ] && echo ', SIGPIPE')) — retrying in ${wait}s"
             sleep "$wait"
           fi
         done
-        echo "smoke failed after $attempts attempts (~4.5m budget)"
+        echo "smoke failed after $attempts attempts (~4.5m budget); last exit $rc"
         exit 1
       onFailure: stop
